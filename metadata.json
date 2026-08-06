@@ -1,0 +1,6 @@
+{
+  "name": "Hostel Management System",
+  "description": "A production-ready hostel management system with role-based access, room allocation, resident management, billing, PhonePe payment gateway, and maintenance tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
