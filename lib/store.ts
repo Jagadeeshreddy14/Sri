@@ -585,6 +585,8 @@ class HostelStore {
         availableRooms: this.rooms.filter((r) => r.status === 'Available').length,
         totalResidents,
         pendingMaintenance: openMaintenanceTickets,
+        activeWifiCount: this.floorWifis.length || 4,
+        totalWifiFloors: 4,
       },
       revenueChart: [
         { month: 'Mar', amount: 72000 },

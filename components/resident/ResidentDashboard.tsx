@@ -7,6 +7,7 @@ import { hostelStore } from '@/lib/store';
 import PhonePeModal from '@/components/PhonePeModal';
 import { generateInvoicePDF } from '@/lib/pdf-generator';
 import confetti from 'canvas-confetti';
+import WifiQrModal from '@/components/WifiQrModal';
 import {
   Home,
   Receipt,
@@ -29,6 +30,7 @@ import {
   MicOff,
   Copy,
   Check,
+  QrCode,
 } from 'lucide-react';
 
 export default function ResidentDashboard() {
@@ -38,6 +40,7 @@ export default function ResidentDashboard() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [floorWifi, setFloorWifi] = useState<FloorWifi | null>(null);
   const [wifiCopied, setWifiCopied] = useState(false);
+  const [isWifiQrOpen, setIsWifiQrOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // PhonePe Modal State
@@ -293,25 +296,33 @@ export default function ResidentDashboard() {
               Pass: {floorWifi?.password || 'Fiber1Gbps#2026'}
             </p>
           </div>
-          <button
-            onClick={() => {
-              const text = `SSID: ${floorWifi?.ssid || 'GrandHorizon_Resident'}\nPass: ${floorWifi?.password || 'Fiber1Gbps#2026'}`;
-              navigator.clipboard.writeText(text);
-              setWifiCopied(true);
-              setTimeout(() => setWifiCopied(false), 2000);
-            }}
-            className="w-full mt-1 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 font-extrabold text-[11px] rounded-xl border border-indigo-200 dark:border-indigo-800 transition flex items-center justify-center gap-1.5"
-          >
-            {wifiCopied ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-600" /> Copied Wi-Fi Info!
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" /> Copy Wi-Fi Credentials
-              </>
-            )}
-          </button>
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            <button
+              onClick={() => setIsWifiQrOpen(true)}
+              className="py-2 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] rounded-xl shadow-sm transition flex items-center justify-center gap-1.5"
+            >
+              <QrCode className="w-3.5 h-3.5" /> Scan QR Code
+            </button>
+            <button
+              onClick={() => {
+                const text = `SSID: ${floorWifi?.ssid || 'GrandHorizon_Resident'}\nPass: ${floorWifi?.password || 'Fiber1Gbps#2026'}`;
+                navigator.clipboard.writeText(text);
+                setWifiCopied(true);
+                setTimeout(() => setWifiCopied(false), 2000);
+              }}
+              className="py-2 px-2.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 font-extrabold text-[11px] rounded-xl border border-indigo-200 dark:border-indigo-800 transition flex items-center justify-center gap-1.5"
+            >
+              {wifiCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" /> Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" /> Copy Info
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
@@ -589,6 +600,13 @@ export default function ResidentDashboard() {
           onSuccess={handlePaymentSuccess}
         />
       )}
+
+      {/* WI-FI QR MODAL */}
+      <WifiQrModal
+        isOpen={isWifiQrOpen}
+        onClose={() => setIsWifiQrOpen(false)}
+        wifi={floorWifi}
+      />
     </div>
   );
 }

@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Plus,
   IndianRupee,
+  Wifi,
+  QrCode,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -102,27 +104,27 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
       </div>
 
       {/* Metric Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
         {/* Card 1: Total Revenue */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Total Monthly Revenue</span>
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Monthly Revenue</span>
             <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 rounded-2xl">
               <IndianRupee className="w-5 h-5" />
             </div>
           </div>
           <div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+            <h3 className="text-xl font-black text-slate-900 dark:text-white">
               ₹{(metrics?.totalRevenue || 0).toLocaleString('en-IN')}
             </h3>
             <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" /> ₹{(metrics?.pendingPayments || 0).toLocaleString('en-IN')} Pending collection
+              <TrendingUp className="w-3.5 h-3.5" /> ₹{(metrics?.pendingPayments || 0).toLocaleString('en-IN')} Pending
             </p>
           </div>
         </div>
 
         {/* Card 2: Occupancy Rate */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Occupancy Rate</span>
             <div className="p-2 bg-blue-50 dark:bg-blue-950/50 text-blue-600 rounded-2xl">
@@ -130,17 +132,17 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </div>
           </div>
           <div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+            <h3 className="text-xl font-black text-slate-900 dark:text-white">
               {metrics.occupancyRate}%
             </h3>
-            <p className="text-[11px] text-slate-500 mt-1">
-              {metrics.occupiedBeds} / {metrics.totalCapacity} Beds occupied ({metrics.availableRooms} rooms free)
+            <p className="text-[11px] text-slate-500 mt-1 truncate">
+              {metrics.occupiedBeds}/{metrics.totalCapacity} Beds ({metrics.availableRooms} rooms free)
             </p>
           </div>
         </div>
 
         {/* Card 3: Active Residents */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Active Residents</span>
             <div className="p-2 bg-purple-50 dark:bg-purple-950/50 text-purple-600 rounded-2xl">
@@ -148,31 +150,58 @@ export default function AdminDashboard({ onNavigate }: AdminDashboardProps) {
             </div>
           </div>
           <div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+            <h3 className="text-xl font-black text-slate-900 dark:text-white">
               {metrics.totalResidents}
             </h3>
             <p className="text-[11px] text-slate-500 mt-1">
-              Students & Working Professionals registered
+              Registered residents
             </p>
           </div>
         </div>
 
-        {/* Card 4: Pending Maintenance */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        {/* Card 4: Maintenance Issues */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Maintenance Issues</span>
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Maintenance</span>
             <div className="p-2 bg-amber-50 dark:bg-amber-950/50 text-amber-600 rounded-2xl">
               <Wrench className="w-5 h-5" />
             </div>
           </div>
           <div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+            <h3 className="text-xl font-black text-slate-900 dark:text-white">
               {metrics.pendingMaintenance}
             </h3>
             <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-1">
-              Active tickets needing staff resolution
+              Active tickets needing fix
             </p>
           </div>
+        </div>
+
+        {/* Card 5: Active Floor Wi-Fi */}
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Floor Wi-Fi</span>
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 rounded-2xl">
+                <Wifi className="w-5 h-5" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                {metrics.activeWifiCount || 4} Networks
+              </h3>
+              <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium mt-0.5 flex items-center gap-1">
+                <QrCode className="w-3 h-3" /> QR Access Enabled
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigate('rooms')}
+            className="w-full text-left text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800"
+          >
+            <span>Manage Wi-Fi & Rooms</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 

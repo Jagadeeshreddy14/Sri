@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Room, FloorWifi } from '@/lib/types';
 import { hostelStore } from '@/lib/store';
+import WifiQrModal from '@/components/WifiQrModal';
 import {
   Building2,
   Plus,
@@ -51,6 +52,15 @@ export default function RoomManagement() {
   const [wifiFrequency, setWifiFrequency] = useState('5 GHz Dual-Band');
   const [wifiNotes, setWifiNotes] = useState('Ground & 1st Floor High-Speed Mesh Access Point');
   const [wifiSuccessMsg, setWifiSuccessMsg] = useState<string | null>(null);
+
+  // Wi-Fi QR Code Viewer State
+  const [qrWifiTarget, setQrWifiTarget] = useState<FloorWifi | null>(null);
+  const [isWifiQrOpen, setIsWifiQrOpen] = useState(false);
+
+  const handleShowWifiQr = (fw: FloorWifi) => {
+    setQrWifiTarget(fw);
+    setIsWifiQrOpen(true);
+  };
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -443,13 +453,22 @@ export default function RoomManagement() {
                             </p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleCopyText(`SSID: ${fw.ssid}\nPass: ${fw.password}`, `room-${room.id}`)}
-                          className="px-2.5 py-1 bg-white dark:bg-slate-800 text-[10px] font-extrabold text-indigo-600 dark:text-indigo-300 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-800 shrink-0 hover:bg-indigo-100 transition"
-                          title="Copy Floor Wi-Fi details"
-                        >
-                          {copiedText === `room-${room.id}` ? 'Copied!' : 'Copy'}
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleShowWifiQr(fw)}
+                            className="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition"
+                            title="Show Wi-Fi QR Code for Scanning"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleCopyText(`SSID: ${fw.ssid}\nPass: ${fw.password}`, `room-${room.id}`)}
+                            className="px-2.5 py-1 bg-white dark:bg-slate-800 text-[10px] font-extrabold text-indigo-600 dark:text-indigo-300 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition"
+                            title="Copy Floor Wi-Fi details"
+                          >
+                            {copiedText === `room-${room.id}` ? 'Copied!' : 'Copy'}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Amenities tags */}
@@ -632,21 +651,30 @@ export default function RoomManagement() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center justify-between pt-2 gap-2 flex-wrap">
                     <button
-                      onClick={() => handleCopyText(`Wi-Fi SSID: ${fw.ssid}\nPassword: ${fw.password}`, `all-${floorNum}`)}
-                      className="px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center gap-1.5"
+                      onClick={() => handleShowWifiQr(fw)}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5"
                     >
-                      <Copy className="w-3.5 h-3.5 text-slate-500" />
-                      {copiedText === `all-${floorNum}` ? 'Copied Full Details!' : 'Copy Full Details'}
+                      <QrCode className="w-3.5 h-3.5" /> Show QR Code
                     </button>
 
-                    <button
-                      onClick={() => handleOpenEditWifiModal(fw, floorNum)}
-                      className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5"
-                    >
-                      <Edit className="w-3.5 h-3.5" /> Edit Floor Wi-Fi
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleCopyText(`Wi-Fi SSID: ${fw.ssid}\nPassword: ${fw.password}`, `all-${floorNum}`)}
+                        className="px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center gap-1"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                        {copiedText === `all-${floorNum}` ? 'Copied!' : 'Copy'}
+                      </button>
+
+                      <button
+                        onClick={() => handleOpenEditWifiModal(fw, floorNum)}
+                        className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+                      >
+                        <Edit className="w-3.5 h-3.5" /> Edit
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -908,6 +936,13 @@ export default function RoomManagement() {
           </div>
         </div>
       )}
+
+      {/* WI-FI QR CODE VIEWER MODAL */}
+      <WifiQrModal
+        isOpen={isWifiQrOpen}
+        onClose={() => setIsWifiQrOpen(false)}
+        wifi={qrWifiTarget}
+      />
     </div>
   );
 }
