@@ -25,6 +25,15 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[HTTP] ${req.method} ${req.url}`);
+  res.on('finish', () => {
+    console.log(`[HTTP] ${req.method} ${req.url} -> ${res.statusCode}`);
+  });
+  next();
+});
+
 // ----------------- MONGODB CONNECTION -----------------
 const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://jagadeesh:8074563501@cluster0.ur44l.mongodb.net/sri';
 mongoose.connect(mongoURI)
@@ -1446,12 +1455,20 @@ if (fs.existsSync(distPath)) {
   console.log(`Serving static assets from: ${distPath}`);
   app.use(express.static(distPath));
   
-  app.get('*', (req, res) => {
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
     res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
   console.warn(`Static assets directory not found at: ${distPath}. Running in API-only mode.`);
 }
+
+// 404 API Handler
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ message: `API route not found: ${req.method} ${req.originalUrl}` });
+});
 
 // Start server
 app.listen(PORT, () => {
