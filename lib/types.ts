@@ -192,3 +192,13 @@ export interface FloorWifi {
   notes?: string;
 }
 
+export interface HostelInfo {
+  name: string;
+  tagline: string;
+  address: string;
+  phone: string;
+  email: string;
+  establishedYear?: string;
+  gstin?: string;
+}
+

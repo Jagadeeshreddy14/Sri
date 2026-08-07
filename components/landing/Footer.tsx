@@ -1,9 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, Heart, ShieldCheck, Phone, Mail } from 'lucide-react';
+import { hostelStore } from '../../lib/store';
 
 export default function Footer() {
+  const [hostelInfo, setHostelInfo] = useState(() => hostelStore.getHostelInfo());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setHostelInfo(hostelStore.getHostelInfo());
+    };
+    window.addEventListener('hostel_info_updated', handleUpdate);
+    return () => window.removeEventListener('hostel_info_updated', handleUpdate);
+  }, []);
+
   return (
     <footer className="bg-slate-900 text-slate-400 text-xs border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -15,11 +26,11 @@ export default function Footer() {
                 <Building2 className="w-5 h-5" />
               </div>
               <span className="font-extrabold text-base text-white tracking-wide">
-                Grand Horizon
+                {hostelInfo?.name || 'Grand Horizon'}
               </span>
             </div>
             <p className="text-slate-400 text-xs leading-relaxed">
-              India's premier student and working professional accommodation system. Combining luxury, high safety, and digital-first hostel management.
+              {hostelInfo?.tagline || "India's premier student and working professional accommodation system. Combining luxury, high safety, and digital-first hostel management."}
             </p>
           </div>
 
@@ -50,8 +61,8 @@ export default function Footer() {
           <div className="space-y-3">
             <h4 className="font-bold text-white text-sm">Contact & Support</h4>
             <div className="space-y-2">
-              <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-blue-400" /> +91 98765 43210</p>
-              <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-blue-400" /> support@grandhorizon.com</p>
+              <p className="flex items-center gap-2"><Phone className="w-3.5 h-3.5 text-blue-400" /> {hostelInfo?.phone || '+91 98765 43210'}</p>
+              <p className="flex items-center gap-2"><Mail className="w-3.5 h-3.5 text-blue-400" /> {hostelInfo?.email || 'support@grandhorizon.com'}</p>
               <p className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> 24/7 Security Gate Control</p>
             </div>
           </div>

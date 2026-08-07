@@ -180,15 +180,36 @@ export default function ResidentManagement() {
     }
   };
 
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const digitsOnlyQuery = searchQuery.replace(/\D/g, '');
+
   const filteredResidents = residents.filter((r) => {
     const matchesStatus = statusFilter === 'All' || r.status === statusFilter;
-    const matchesQuery =
-      (r.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (r.phone || '').includes(searchQuery) ||
-      (r.roomNumber && r.roomNumber.toLowerCase().includes(searchQuery.toLowerCase()));
+    if (!matchesStatus) return false;
 
-    return matchesStatus && matchesQuery;
+    if (!normalizedQuery) return true;
+
+    // 1. Name match
+    const nameMatch = (r.name || '').toLowerCase().includes(normalizedQuery);
+
+    // 2. Email match
+    const emailMatch = (r.email || '').toLowerCase().includes(normalizedQuery);
+
+    // 3. Room match (e.g., '101', 'room 101')
+    const roomStr = r.roomNumber ? String(r.roomNumber).toLowerCase() : '';
+    const roomMatch =
+      roomStr.includes(normalizedQuery) ||
+      `room ${roomStr}`.includes(normalizedQuery) ||
+      `room#${roomStr}`.includes(normalizedQuery);
+
+    // 4. Phone number match (matches formatted string and extracted digits)
+    const phoneStr = (r.phone || '').toLowerCase();
+    const phoneDigits = phoneStr.replace(/\D/g, '');
+    const phoneMatch =
+      phoneStr.includes(normalizedQuery) ||
+      (digitsOnlyQuery.length >= 2 && phoneDigits.includes(digitsOnlyQuery));
+
+    return nameMatch || emailMatch || roomMatch || phoneMatch;
   });
 
   return (
@@ -211,30 +232,71 @@ export default function ResidentManagement() {
         </button>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-4 justify-between items-center">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search name, phone, email or room..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-xs border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {/* Global Real-Time Search & Filter Bar */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row gap-3 justify-between items-center">
+          <div className="relative w-full md:flex-1">
+            <Search className="w-4 h-4 text-blue-600 dark:text-blue-400 absolute left-3.5 top-3.5" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by Resident Name, Room Number (e.g. 101), or Phone Number..."
+              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 text-slate-900 dark:text-white rounded-2xl text-xs font-medium border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 p-0.5"
+                title="Clear search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+            <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5 shrink-0">
+              <Filter className="w-3.5 h-3.5 text-blue-600" /> Filter Status:
+            </span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none"
+            >
+              <option value="All">All Residents</option>
+              <option value="ACTIVE">Active Residents</option>
+              <option value="INACTIVE">Vacated / Inactive</option>
+            </select>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-          <span className="text-xs text-slate-500">Status:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-900 dark:text-white outline-none"
-          >
-            <option value="All">All Residents</option>
-            <option value="ACTIVE">Active Residents</option>
-            <option value="INACTIVE">Vacated / Inactive</option>
-          </select>
+        {/* Live Search Metadata & Quick Filter Chips */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+          <div className="flex items-center gap-1.5 text-slate-500">
+            <span className="font-extrabold text-slate-800 dark:text-slate-200">
+              {filteredResidents.length}
+            </span>
+            <span>resident(s) found</span>
+            {searchQuery && (
+              <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded-lg text-[10px] font-bold border border-blue-200 dark:border-blue-800">
+                Matching: &quot;{searchQuery}&quot;
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto text-[11px]">
+            <span className="text-slate-400">Quick search:</span>
+            {['Aarav', '101', '98765'].map((chip) => (
+              <button
+                key={chip}
+                onClick={() => setSearchQuery(chip)}
+                className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-slate-600 dark:text-slate-300 hover:text-blue-600 rounded-lg transition font-mono"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

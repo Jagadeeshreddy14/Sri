@@ -24,8 +24,12 @@ import {
   FileText,
   X,
   Sparkles,
+  Calendar,
+  AlertCircle,
+  IndianRupee,
+  SendHorizontal,
 } from 'lucide-react';
-import { SmsLog, SmsSettings, Resident, SmsTemplate } from '../../lib/types';
+import { SmsLog, SmsSettings, Resident, SmsTemplate, Invoice } from '../../lib/types';
 import { hostelStore } from '../../lib/store';
 
 export default function SmsManagement() {
@@ -33,8 +37,15 @@ export default function SmsManagement() {
   const [settings, setSettings] = useState<SmsSettings | null>(null);
   const [residents, setResidents] = useState<Resident[]>([]);
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'broadcast' | 'direct' | 'templates' | 'logs' | 'settings'>('broadcast');
+  const [activeTab, setActiveTab] = useState<'broadcast' | 'reminders' | 'direct' | 'templates' | 'logs' | 'settings'>('reminders');
+
+  // Automated Rent Reminders State
+  const [batchReminding, setBatchReminding] = useState(false);
+  const [batchSuccess, setBatchSuccess] = useState<string | null>(null);
+  const [remindedInvoices, setRemindedInvoices] = useState<Record<string, boolean>>({});
+  const [autoScheduleReminders, setAutoScheduleReminders] = useState(true);
 
   // Emergency Broadcast Form State
   const [bcastHeadline, setBcastHeadline] = useState('');
@@ -79,10 +90,12 @@ export default function SmsManagement() {
       const settingsRes = hostelStore.getSmsSettings();
       const residentsRes = hostelStore.getResidents();
       const templatesRes = hostelStore.getSmsTemplates();
+      const invoicesRes = hostelStore.getInvoices();
       setLogs(logsRes);
       setSettings(settingsRes);
       setResidents(residentsRes);
       setTemplates(templatesRes);
+      setInvoices(invoicesRes);
 
       if (residentsRes.length > 0 && !selectedResidentId) {
         setSelectedResidentId(residentsRes[0].id);
@@ -95,6 +108,84 @@ export default function SmsManagement() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getPendingOrDueInvoices = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return invoices.filter((inv) => {
+      if (inv.status === 'PAID') return false;
+
+      if (!inv.dueDate) return true;
+      const due = new Date(inv.dueDate);
+      due.setHours(0, 0, 0, 0);
+      const diffTime = due.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      return inv.status === 'OVERDUE' || inv.status === 'PENDING' || diffDays <= 3;
+    });
+  };
+
+  const getPreconfiguredSmsText = (inv: Invoice) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = inv.dueDate ? new Date(inv.dueDate) : new Date();
+    due.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+    let statusText = `due on ${inv.dueDate || '10th'}`;
+    if (inv.status === 'OVERDUE' || diffDays < 0) {
+      statusText = `OVERDUE by ${Math.abs(diffDays)} day(s)`;
+    } else if (diffDays === 0) {
+      statusText = `DUE TODAY (${inv.dueDate})`;
+    } else if (diffDays <= 3) {
+      statusText = `due in ${diffDays} day(s) on ${inv.dueDate}`;
+    }
+
+    return `Grand Horizon Hostel: Dear ${inv.residentName}, your rent payment of ₹${inv.totalAmount.toLocaleString('en-IN')} for Room ${inv.roomNumber || '101'} (${inv.month} ${inv.year}) is ${statusText}. Please clear your dues on your resident portal.`;
+  };
+
+  const handleSendAllAutomatedReminders = async () => {
+    const pendingInvoices = getPendingOrDueInvoices();
+    if (pendingInvoices.length === 0) return;
+    setBatchReminding(true);
+    setBatchSuccess(null);
+    let count = 0;
+
+    for (const inv of pendingInvoices) {
+      const resident = residents.find((r) => r.id === inv.residentId || r.name === inv.residentName);
+      const phone = resident?.phone || '9876512345';
+      const message = getPreconfiguredSmsText(inv);
+      await hostelStore.sendCustomSms(
+        inv.residentName,
+        phone,
+        message,
+        'PAYMENT_DUE',
+        'Automated Rent Reminder Service'
+      );
+      setRemindedInvoices((prev) => ({ ...prev, [inv.id]: true }));
+      count++;
+    }
+
+    setBatchSuccess(`Automated rent reminder SMS dispatched successfully to ${count} resident(s)!`);
+    setBatchReminding(false);
+    fetchData();
+  };
+
+  const handleSendSingleAutomatedReminder = async (inv: Invoice) => {
+    const resident = residents.find((r) => r.id === inv.residentId || r.name === inv.residentName);
+    const phone = resident?.phone || '9876512345';
+    const message = getPreconfiguredSmsText(inv);
+    await hostelStore.sendCustomSms(
+      inv.residentName,
+      phone,
+      message,
+      'PAYMENT_DUE',
+      'Automated Rent Reminder Service'
+    );
+    setRemindedInvoices((prev) => ({ ...prev, [inv.id]: true }));
+    fetchData();
   };
 
   const handleResidentChange = (resId: string) => {
@@ -335,6 +426,21 @@ export default function SmsManagement() {
       {/* Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 overflow-x-auto scrollbar-none">
         <button
+          onClick={() => setActiveTab('reminders')}
+          className={`px-4 py-2 text-xs font-extrabold rounded-2xl transition flex items-center gap-2 shrink-0 ${
+            activeTab === 'reminders'
+              ? 'bg-amber-600 text-white shadow-md'
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+          }`}
+        >
+          <Clock className="w-4 h-4 text-amber-300" /> ⏰ Automated Rent Reminders
+          {getPendingOrDueInvoices().length > 0 && (
+            <span className="px-2 py-0.5 bg-rose-500 text-white text-[10px] font-black rounded-full animate-pulse">
+              {getPendingOrDueInvoices().length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => setActiveTab('broadcast')}
           className={`px-4 py-2 text-xs font-extrabold rounded-2xl transition flex items-center gap-2 shrink-0 ${
             activeTab === 'broadcast'
@@ -385,6 +491,218 @@ export default function SmsManagement() {
           <Settings className="w-4 h-4" /> ⚙️ Trigger Settings
         </button>
       </div>
+
+      {/* Tab: Automated Rent Reminders */}
+      {activeTab === 'reminders' && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-black rounded-full uppercase tracking-wider border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                  <Zap className="w-3 h-3 text-amber-500" /> Automated Service
+                </span>
+                <span className="text-xs font-semibold text-slate-400">
+                  Target: Pending / Due within 3 Days
+                </span>
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-600" /> Automated Rent Payment Reminders
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Automatically identifies residents with pending or upcoming rent payments (due within 3 days or overdue) and dispatches pre-configured SMS reminders.
+              </p>
+            </div>
+
+            <button
+              onClick={handleSendAllAutomatedReminders}
+              disabled={batchReminding || getPendingOrDueInvoices().length === 0}
+              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-xs font-bold rounded-2xl shadow-md transition flex items-center gap-2 shrink-0"
+            >
+              <SendHorizontal className={`w-4 h-4 ${batchReminding ? 'animate-spin' : ''}`} />
+              {batchReminding
+                ? 'Dispatching All Reminders...'
+                : `Batch Send Automated SMS (${getPendingOrDueInvoices().length})`}
+            </button>
+          </div>
+
+          {batchSuccess && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300 text-xs rounded-2xl flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{batchSuccess}</span>
+            </div>
+          )}
+
+          {/* Automated Rule Schedule Settings Card */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                  Automated Reminder Rule
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Sends a pre-configured SMS reminder to residents 3 days before their rent due date and on the due date.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                {autoScheduleReminders ? 'Auto-Trigger Active' : 'Auto-Trigger Paused'}
+              </span>
+              <button
+                onClick={() => setAutoScheduleReminders(!autoScheduleReminders)}
+                className={`w-11 h-6 rounded-full transition-colors relative shrink-0 p-0.5 ${
+                  autoScheduleReminders ? 'bg-amber-600' : 'bg-slate-300 dark:bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+                    autoScheduleReminders ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* List of Pending / Due Residents requiring SMS */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Qualifying Residents ({getPendingOrDueInvoices().length})
+            </h4>
+
+            {getPendingOrDueInvoices().length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">All Clear! No Rent Dues Pending</h4>
+                <p className="text-xs text-slate-500">All residents have paid their rent or no invoices are due within 3 days.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {getPendingOrDueInvoices().map((inv) => {
+                  const resident = residents.find((r) => r.id === inv.residentId || r.name === inv.residentName);
+                  const phone = resident?.phone || '9876512345';
+                  const preconfiguredText = getPreconfiguredSmsText(inv);
+                  const isReminded = remindedInvoices[inv.id];
+
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const due = inv.dueDate ? new Date(inv.dueDate) : new Date();
+                  due.setHours(0, 0, 0, 0);
+                  const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+                  return (
+                    <div
+                      key={inv.id}
+                      className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 space-y-3 relative hover:border-amber-500/50 transition"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={resident?.profileImage || 'https://picsum.photos/seed/user/200/200'}
+                            alt={inv.residentName}
+                            className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                          />
+                          <div>
+                            <p className="text-xs font-black text-slate-900 dark:text-white">
+                              {inv.residentName}
+                            </p>
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              Room {inv.roomNumber || '101'} • +91 {phone}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`px-2.5 py-1 text-[10px] font-black rounded-xl border ${
+                            inv.status === 'OVERDUE' || diffDays < 0
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border-rose-200 dark:border-rose-900'
+                              : diffDays === 0
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-900'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-900'
+                          }`}
+                        >
+                          {diffDays < 0
+                            ? `OVERDUE (${Math.abs(diffDays)}d)`
+                            : diffDays === 0
+                            ? 'DUE TODAY'
+                            : `DUE IN ${diffDays} DAY(S)`}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase font-bold">Rent Amount</span>
+                          <span className="font-black text-slate-900 dark:text-white flex items-center gap-0.5">
+                            <IndianRupee className="w-3 h-3 text-emerald-600" />
+                            {inv.totalAmount.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase font-bold">Due Date</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300">
+                            {inv.dueDate}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block uppercase font-bold">Invoice #</span>
+                          <span className="font-mono text-slate-600 dark:text-slate-400">
+                            {inv.invoiceNumber || inv.id}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Preconfigured SMS Message Box */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                            <FileText className="w-3 h-3 text-amber-600" /> Pre-configured SMS Content
+                          </span>
+                          <button
+                            onClick={() => handleCopyText(preconfiguredText, inv.id)}
+                            className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                          >
+                            {copySuccessId === inv.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                            {copySuccessId === inv.id ? 'Copied' : 'Copy'}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-700 dark:text-slate-300 font-mono bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 leading-relaxed">
+                          {preconfiguredText}
+                        </p>
+                      </div>
+
+                      <div className="pt-1 flex items-center justify-between">
+                        {isReminded ? (
+                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 className="w-4 h-4" /> Reminder SMS Dispatched!
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">
+                            Ready to dispatch via Twilio Gateway
+                          </span>
+                        )}
+
+                        <button
+                          onClick={() => handleSendSingleAutomatedReminder(inv)}
+                          disabled={isReminded}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                            isReminded
+                              ? 'bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-default'
+                              : 'bg-amber-600 hover:bg-amber-700 text-white'
+                          }`}
+                        >
+                          <SendHorizontal className="w-3.5 h-3.5" />
+                          {isReminded ? 'Sent' : 'Send Reminder SMS'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tab 1: Emergency Broadcast */}
       {activeTab === 'broadcast' && (

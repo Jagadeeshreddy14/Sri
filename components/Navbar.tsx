@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { hostelStore } from '../lib/store';
 import {
   Building2,
   Moon,
@@ -34,7 +35,15 @@ export default function Navbar({
 }: NavbarProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hostelInfo, setHostelInfo] = useState(() => hostelStore.getHostelInfo());
 
+  useEffect(() => {
+    const handleUpdate = () => {
+      setHostelInfo(hostelStore.getHostelInfo());
+    };
+    window.addEventListener('hostel_info_updated', handleUpdate);
+    return () => window.removeEventListener('hostel_info_updated', handleUpdate);
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
@@ -46,10 +55,10 @@ export default function Navbar({
           </div>
           <div>
             <span className="text-lg font-black tracking-tight text-slate-900 dark:text-white block leading-none">
-              Grand Horizon
+              {hostelInfo?.name || 'Grand Horizon'}
             </span>
             <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mt-1 block">
-              Hostel Management System
+              {hostelInfo?.tagline || 'Hostel Management System'}
             </span>
           </div>
         </a>

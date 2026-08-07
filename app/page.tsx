@@ -26,6 +26,7 @@ import SmartBilling from '../components/admin/SmartBilling';
 import MaintenanceAdmin from '../components/admin/MaintenanceAdmin';
 import ReportsView from '../components/admin/ReportsView';
 import SmsManagement from '../components/admin/SmsManagement';
+import HostelSettingsView from '../components/admin/HostelSettingsView';
 
 // Role Dashboards
 import ResidentDashboard from '../components/resident/ResidentDashboard';
@@ -42,6 +43,7 @@ import {
   Receipt,
   FileSpreadsheet,
   MessageSquare,
+  Settings,
 } from 'lucide-react';
 
 export default function Home() {
@@ -59,7 +61,7 @@ export default function Home() {
 
   // Admin Active Sub-Tab
   const [adminTab, setAdminTab] = useState<
-    'dashboard' | 'rooms' | 'residents' | 'staff' | 'billing' | 'maintenance' | 'sms' | 'reports'
+    'dashboard' | 'rooms' | 'residents' | 'staff' | 'billing' | 'maintenance' | 'sms' | 'reports' | 'settings'
   >('dashboard');
 
   // Auto-trigger onboarding for new sessions if not completed
@@ -217,6 +219,17 @@ export default function Home() {
                 >
                   <FileSpreadsheet className="w-4 h-4" /> Management Reports
                 </button>
+
+                <button
+                  onClick={() => setAdminTab('settings')}
+                  className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    adminTab === 'settings'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <Settings className="w-4 h-4" /> Hostel Settings
+                </button>
               </div>
 
               {/* Render Admin Views */}
@@ -228,6 +241,7 @@ export default function Home() {
               {adminTab === 'maintenance' && <MaintenanceAdmin />}
               {adminTab === 'sms' && <SmsManagement />}
               {adminTab === 'reports' && <ReportsView />}
+              {adminTab === 'settings' && <HostelSettingsView />}
             </div>
           )}
 

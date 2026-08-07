@@ -1,4 +1,4 @@
-import { Room, Resident, Staff, Invoice, MaintenanceRequest, Notification, SmsLog, SmsSettings, RecurringBillingSettings, SmsTemplate, PaymentSettings, FloorWifi } from './types';
+import { Room, Resident, Staff, Invoice, MaintenanceRequest, Notification, SmsLog, SmsSettings, RecurringBillingSettings, SmsTemplate, PaymentSettings, FloorWifi, HostelInfo } from './types';
 import {
   sendSmsNotification,
   buildPaymentDueSmsText,
@@ -471,6 +471,16 @@ const INITIAL_FLOOR_WIFI: FloorWifi[] = [
   },
 ];
 
+const INITIAL_HOSTEL_INFO: HostelInfo = {
+  name: 'Grand Horizon',
+  tagline: 'Premium Student & Professional Co-Living Hostel',
+  address: 'Plot 42, Innovation Corridor, Cyber City, Hyderabad, 500081',
+  phone: '+91 98765 43210',
+  email: 'support@grandhorizonhostel.com',
+  establishedYear: '2021',
+  gstin: '36AAAAA0000A1Z5',
+};
+
 class HostelStore {
   private rooms: Room[] = [];
   private residents: Resident[] = [];
@@ -484,6 +494,7 @@ class HostelStore {
   private smsTemplates: SmsTemplate[] = INITIAL_SMS_TEMPLATES;
   private paymentSettings: PaymentSettings = INITIAL_PAYMENT_SETTINGS;
   private floorWifis: FloorWifi[] = [];
+  private hostelInfo: HostelInfo = INITIAL_HOSTEL_INFO;
 
   constructor() {
     this.loadFromStorage();
@@ -507,6 +518,7 @@ class HostelStore {
         this.smsTemplates = parsed.smsTemplates || INITIAL_SMS_TEMPLATES;
         this.paymentSettings = parsed.paymentSettings || INITIAL_PAYMENT_SETTINGS;
         this.floorWifis = parsed.floorWifis || INITIAL_FLOOR_WIFI;
+        this.hostelInfo = parsed.hostelInfo || INITIAL_HOSTEL_INFO;
         return;
       }
     } catch (e) {
@@ -525,6 +537,7 @@ class HostelStore {
     this.smsTemplates = [...INITIAL_SMS_TEMPLATES];
     this.paymentSettings = { ...INITIAL_PAYMENT_SETTINGS };
     this.floorWifis = [...INITIAL_FLOOR_WIFI];
+    this.hostelInfo = { ...INITIAL_HOSTEL_INFO };
     this.saveToStorage();
   }
 
@@ -546,12 +559,28 @@ class HostelStore {
           smsTemplates: this.smsTemplates,
           paymentSettings: this.paymentSettings,
           floorWifis: this.floorWifis,
+          hostelInfo: this.hostelInfo,
         })
       );
     } catch (e) {
       console.error('Failed to save store to localStorage', e);
     }
   }
+
+  // HOSTEL BRANDING & SETTINGS
+  public getHostelInfo(): HostelInfo {
+    return this.hostelInfo;
+  }
+
+  public updateHostelInfo(info: Partial<HostelInfo>): HostelInfo {
+    this.hostelInfo = { ...this.hostelInfo, ...info };
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hostel_info_updated', { detail: this.hostelInfo }));
+    }
+    return this.hostelInfo;
+  }
+
 
 
   // DASHBOARD METRICS
@@ -1337,6 +1366,11 @@ export function setupMockFetchInterceptor() {
         if (cleanPath === '/api/payments/settings') {
           if (method === 'GET') return jsonResponse(hostelStore.getPaymentSettings());
           if (method === 'POST' || method === 'PUT') return jsonResponse(hostelStore.updatePaymentSettings(bodyData));
+        }
+
+        if (cleanPath === '/api/hostel/info') {
+          if (method === 'GET') return jsonResponse(hostelStore.getHostelInfo());
+          if (method === 'POST' || method === 'PUT') return jsonResponse(hostelStore.updateHostelInfo(bodyData));
         }
 
         // FLOOR WI-FI API
