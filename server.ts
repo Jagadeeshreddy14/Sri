@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import path from 'path';
+import fs from 'fs';
 import {
   sendSmsNotification,
   buildPaymentDueSmsText,
@@ -1436,13 +1437,16 @@ app.post('/api/sms/broadcast', async (req, res) => {
 
 
 // Serve static assets in production
-if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, 'dist');
+const distPath = path.join(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+  console.log(`Serving static assets from: ${distPath}`);
   app.use(express.static(distPath));
   
   app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
+} else {
+  console.warn(`Static assets directory not found at: ${distPath}. Running in API-only mode.`);
 }
 
 // Start server
