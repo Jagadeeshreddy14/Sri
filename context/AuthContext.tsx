@@ -32,9 +32,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    // Enable client mock fetch interceptor for all /api calls
-    setupMockFetchInterceptor();
-
     // Read persisted user session from localStorage if available
     const saved = localStorage.getItem('gh_user_session');
     if (saved) {
@@ -46,123 +43,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Helper to get registered accounts list from localStorage
-  const getRegisteredAccounts = (): StoredAccount[] => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const stored = localStorage.getItem('gh_registered_users');
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      return [];
-    }
-  };
-
   const login = async (email: string, password?: string, role?: Role): Promise<User> => {
     const cleanEmail = (email || '').trim().toLowerCase();
-    const accounts = getRegisteredAccounts();
-
-    // Check if there is a registered account for this email
-    const found = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
-    if (found) {
-      const authenticatedUser: User = {
-        id: found.id,
-        name: found.name,
-        email: found.email,
-        role: found.role,
-        phone: found.phone,
-        roomNumber: found.roomNumber,
-        roomId: found.roomId,
-      };
-      setUser(authenticatedUser);
-      localStorage.setItem('gh_user_session', JSON.stringify(authenticatedUser));
-      return authenticatedUser;
+    let computedPassword = password;
+    if (!computedPassword) {
+      if (cleanEmail.includes('admin')) {
+        computedPassword = 'admin123';
+      } else if (cleanEmail.includes('staff')) {
+        computedPassword = 'staff123';
+      } else {
+        computedPassword = 'resident123';
+      }
     }
 
-    // Default / Demo fallback login logic
-    let userRole: Role = role || 'resident';
-    if (cleanEmail.includes('admin') || password === 'admin123') {
-      userRole = 'admin';
-    } else if (cleanEmail.includes('staff') || password === 'staff123') {
-      userRole = 'staff';
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: cleanEmail, password: computedPassword, role }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.message || 'Login failed');
     }
 
-    let newUser: User = {
-      id: 'res-101',
-      name: 'Aarav Sharma',
-      email: cleanEmail || 'aarav@example.com',
-      role: userRole,
-      roomNumber: '101',
-      roomId: 'room-101',
-      phone: '+91 98765 12345',
-    };
-
-    if (userRole === 'admin') {
-      newUser = {
-        id: 'admin-1',
-        name: 'Dr. Rajesh Verma (Warden)',
-        email: cleanEmail || 'admin@grandhorizon.com',
-        role: 'admin',
-        phone: '+91 98765 00001',
-      };
-    } else if (userRole === 'staff') {
-      newUser = {
-        id: 'staff-1',
-        name: 'Suresh Kumar',
-        email: cleanEmail || 'suresh@grandhorizon.com',
-        role: 'staff',
-        phone: '+91 98765 88888',
-      };
-    }
-
-    setUser(newUser);
-    localStorage.setItem('gh_user_session', JSON.stringify(newUser));
-    return newUser;
+    const authenticatedUser: User = await response.json();
+    setUser(authenticatedUser);
+    localStorage.setItem('gh_user_session', JSON.stringify(authenticatedUser));
+    return authenticatedUser;
   };
 
   const register = async (data: RegisterData): Promise<User> => {
-    const cleanEmail = data.email.trim().toLowerCase();
-    const assignedRole: Role = 'resident'; // Public registration is strictly for residents
-    const newId = `resident-${Date.now()}`;
-
-    const newUser: StoredAccount = {
-      id: newId,
-      name: data.name,
-      email: cleanEmail,
-      role: assignedRole,
-      phone: data.phone || '+91 98765 43210',
-      password: data.password || 'password123',
-      roomNumber: data.roomNumber || '101',
-    };
-
-    // Save to registered accounts list in localStorage
-    const accounts = getRegisteredAccounts();
-    const updatedAccounts = [...accounts.filter((a) => a.email.toLowerCase() !== cleanEmail), newUser];
-    localStorage.setItem('gh_registered_users', JSON.stringify(updatedAccounts));
-
-    // Sync resident with hostelStore
-    hostelStore.addResident({
-      name: data.name,
-      email: cleanEmail,
-      phone: data.phone || '9876543210',
-      emergencyContact: '9876500000',
-      roomNumber: data.roomNumber || '101',
-      depositAmount: 8500,
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
     });
 
-    // Set active session
-    const activeUser: User = {
-      id: newUser.id,
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      phone: newUser.phone,
-      roomNumber: newUser.roomNumber,
-      roomId: newUser.roomId,
-    };
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.message || 'Registration failed');
+    }
 
-    setUser(activeUser);
-    localStorage.setItem('gh_user_session', JSON.stringify(activeUser));
-    return activeUser;
+    const authenticatedUser: User = await response.json();
+    setUser(authenticatedUser);
+    localStorage.setItem('gh_user_session', JSON.stringify(authenticatedUser));
+    return authenticatedUser;
   };
 
   const demoLogin = (role: Role) => {

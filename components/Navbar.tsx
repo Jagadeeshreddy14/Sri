@@ -134,15 +134,7 @@ export default function Navbar({
                 </div>
               </div>
 
-              {onOpenOnboarding && (
-                <button
-                  onClick={onOpenOnboarding}
-                  className="px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-extrabold rounded-2xl shadow-sm transition flex items-center gap-1.5"
-                  title="Open Setup Guide & Onboarding Tour"
-                >
-                  <Sparkles className="w-3.5 h-3.5" /> Setup Guide
-                </button>
-              )}
+             
 
               <button
                 onClick={logout}

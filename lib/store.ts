@@ -506,18 +506,18 @@ class HostelStore {
       const dataStr = localStorage.getItem(STORAGE_KEY);
       if (dataStr) {
         const parsed = JSON.parse(dataStr);
-        this.rooms = parsed.rooms || INITIAL_ROOMS;
-        this.residents = parsed.residents || INITIAL_RESIDENTS;
-        this.staff = parsed.staff || INITIAL_STAFF;
-        this.invoices = parsed.invoices || INITIAL_INVOICES;
-        this.maintenance = parsed.maintenance || INITIAL_MAINTENANCE;
-        this.notifications = parsed.notifications || INITIAL_NOTIFICATIONS;
-        this.smsLogs = parsed.smsLogs || INITIAL_SMS_LOGS;
+        this.rooms = parsed.rooms || [];
+        this.residents = parsed.residents || [];
+        this.staff = parsed.staff || [];
+        this.invoices = parsed.invoices || [];
+        this.maintenance = parsed.maintenance || [];
+        this.notifications = parsed.notifications || [];
+        this.smsLogs = parsed.smsLogs || [];
         this.smsSettings = parsed.smsSettings || INITIAL_SMS_SETTINGS;
         this.recurringBillingSettings = parsed.recurringBillingSettings || INITIAL_RECURRING_BILLING_SETTINGS;
         this.smsTemplates = parsed.smsTemplates || INITIAL_SMS_TEMPLATES;
         this.paymentSettings = parsed.paymentSettings || INITIAL_PAYMENT_SETTINGS;
-        this.floorWifis = parsed.floorWifis || INITIAL_FLOOR_WIFI;
+        this.floorWifis = parsed.floorWifis || [];
         this.hostelInfo = parsed.hostelInfo || INITIAL_HOSTEL_INFO;
         return;
       }
@@ -525,18 +525,18 @@ class HostelStore {
       console.error('Failed to load store from localStorage', e);
     }
 
-    this.rooms = [...INITIAL_ROOMS];
-    this.residents = [...INITIAL_RESIDENTS];
-    this.staff = [...INITIAL_STAFF];
-    this.invoices = [...INITIAL_INVOICES];
-    this.maintenance = [...INITIAL_MAINTENANCE];
-    this.notifications = [...INITIAL_NOTIFICATIONS];
-    this.smsLogs = [...INITIAL_SMS_LOGS];
+    this.rooms = [];
+    this.residents = [];
+    this.staff = [];
+    this.invoices = [];
+    this.maintenance = [];
+    this.notifications = [];
+    this.smsLogs = [];
     this.smsSettings = { ...INITIAL_SMS_SETTINGS };
     this.recurringBillingSettings = { ...INITIAL_RECURRING_BILLING_SETTINGS };
     this.smsTemplates = [...INITIAL_SMS_TEMPLATES];
     this.paymentSettings = { ...INITIAL_PAYMENT_SETTINGS };
-    this.floorWifis = [...INITIAL_FLOOR_WIFI];
+    this.floorWifis = [];
     this.hostelInfo = { ...INITIAL_HOSTEL_INFO };
     this.saveToStorage();
   }
@@ -600,13 +600,15 @@ class HostelStore {
     const overdueAmount = pendingInvoices.reduce((sum, i) => sum + i.totalAmount, 0);
     const openMaintenanceTickets = this.maintenance.filter((m) => m.status !== 'RESOLVED').length;
 
-    const paidInvoicesCount = this.invoices.filter((i) => i.status === 'PAID').length;
+    const paidInvoices = this.invoices.filter((i) => i.status === 'PAID');
+    const totalRevenue = paidInvoices.reduce((sum, i) => sum + i.totalAmount, 0);
+    const paidInvoicesCount = paidInvoices.length;
     const pendingInvoicesCount = this.invoices.filter((i) => i.status === 'PENDING').length;
     const overdueInvoicesCount = this.invoices.filter((i) => i.status === 'OVERDUE').length;
 
     return {
       metrics: {
-        totalRevenue: 94000,
+        totalRevenue,
         pendingPayments: overdueAmount,
         occupancyRate,
         occupiedBeds,
@@ -1239,6 +1241,7 @@ export const hostelStore = new HostelStore();
 
 // Intercept window.fetch calls to /api/* so client SPA runs completely standalone without 404s
 export function setupMockFetchInterceptor() {
+  return; // Disabled: Using real backend Express server with MongoDB
   if (typeof window === 'undefined') return;
 
   try {

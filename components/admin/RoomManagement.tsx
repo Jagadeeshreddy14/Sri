@@ -83,7 +83,7 @@ export default function RoomManagement() {
       const res = await fetch('/api/rooms');
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setRooms(data);
           setLoading(false);
           return;
@@ -101,7 +101,7 @@ export default function RoomManagement() {
       const res = await fetch('/api/wifi/floors');
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setFloorWifis(data);
           return;
         }
