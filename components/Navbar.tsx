@@ -77,13 +77,24 @@ export default function Navbar({
 
         {/* Right Action Controls */}
         <div className="hidden md:flex items-center gap-3">
-          {/* Dark Mode Toggle */}
+          {/* Dark Mode Toggle with Rotation Animation */}
           <button
             onClick={onToggleDarkMode}
             aria-label="Toggle Dark Mode"
-            className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+            title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-300 group relative overflow-hidden"
           >
-            {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+            <div
+              className={`transition-transform duration-500 ease-out transform ${
+                darkMode ? 'rotate-[360deg] scale-100' : 'rotate-0 scale-100'
+              }`}
+            >
+              {darkMode ? (
+                <Sun className="w-4 h-4 text-amber-400 transition-transform duration-300 group-hover:rotate-45" />
+              ) : (
+                <Moon className="w-4 h-4 text-slate-600 dark:text-slate-300 transition-transform duration-300 group-hover:-rotate-12" />
+              )}
+            </div>
           </button>
 
           {!isAuthenticated ? (
@@ -149,9 +160,16 @@ export default function Navbar({
         <div className="flex md:hidden items-center gap-2">
           <button
             onClick={onToggleDarkMode}
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+            aria-label="Toggle Dark Mode"
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors"
           >
-            {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+            <div
+              className={`transition-transform duration-500 ease-out transform ${
+                darkMode ? 'rotate-[360deg]' : 'rotate-0'
+              }`}
+            >
+              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
+            </div>
           </button>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
