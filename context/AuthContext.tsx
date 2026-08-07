@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Role } from '../lib/types';
-import { setupMockFetchInterceptor } from '../lib/store';
+import { setupMockFetchInterceptor, hostelStore } from '../lib/store';
 
 interface RegisterData {
   name: string;
@@ -10,6 +10,11 @@ interface RegisterData {
   password?: string;
   role: Role;
   phone?: string;
+  roomNumber?: string;
+}
+
+interface StoredAccount extends User {
+  password?: string;
 }
 
 interface AuthContextType {
@@ -41,19 +46,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Helper to get registered accounts list from localStorage
+  const getRegisteredAccounts = (): StoredAccount[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = localStorage.getItem('gh_registered_users');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
   const login = async (email: string, password?: string, role?: Role): Promise<User> => {
-    // Auto infer role from email or explicit argument if provided
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const accounts = getRegisteredAccounts();
+
+    // Check if there is a registered account for this email
+    const found = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
+    if (found) {
+      const authenticatedUser: User = {
+        id: found.id,
+        name: found.name,
+        email: found.email,
+        role: found.role,
+        phone: found.phone,
+        roomNumber: found.roomNumber,
+        roomId: found.roomId,
+      };
+      setUser(authenticatedUser);
+      localStorage.setItem('gh_user_session', JSON.stringify(authenticatedUser));
+      return authenticatedUser;
+    }
+
+    // Default / Demo fallback login logic
     let userRole: Role = role || 'resident';
-    if (email.includes('admin') || password === 'admin123') {
+    if (cleanEmail.includes('admin') || password === 'admin123') {
       userRole = 'admin';
-    } else if (email.includes('staff') || password === 'staff123') {
+    } else if (cleanEmail.includes('staff') || password === 'staff123') {
       userRole = 'staff';
     }
 
     let newUser: User = {
       id: 'res-101',
       name: 'Aarav Sharma',
-      email: email || 'aarav@example.com',
+      email: cleanEmail || 'aarav@example.com',
       role: userRole,
       roomNumber: '101',
       roomId: 'room-101',
@@ -64,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       newUser = {
         id: 'admin-1',
         name: 'Dr. Rajesh Verma (Warden)',
-        email: email || 'admin@grandhorizon.com',
+        email: cleanEmail || 'admin@grandhorizon.com',
         role: 'admin',
         phone: '+91 98765 00001',
       };
@@ -72,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       newUser = {
         id: 'staff-1',
         name: 'Suresh Kumar',
-        email: email || 'suresh@grandhorizon.com',
+        email: cleanEmail || 'suresh@grandhorizon.com',
         role: 'staff',
         phone: '+91 98765 88888',
       };
@@ -84,18 +120,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (data: RegisterData): Promise<User> => {
-    const newUser: User = {
-      id: `${data.role}-${Date.now()}`,
+    const cleanEmail = data.email.trim().toLowerCase();
+    const assignedRole: Role = 'resident'; // Public registration is strictly for residents
+    const newId = `resident-${Date.now()}`;
+
+    const newUser: StoredAccount = {
+      id: newId,
       name: data.name,
-      email: data.email,
-      role: data.role,
+      email: cleanEmail,
+      role: assignedRole,
       phone: data.phone || '+91 98765 43210',
-      roomNumber: data.role === 'resident' ? '101' : undefined,
+      password: data.password || 'password123',
+      roomNumber: data.roomNumber || '101',
     };
 
-    setUser(newUser);
-    localStorage.setItem('gh_user_session', JSON.stringify(newUser));
-    return newUser;
+    // Save to registered accounts list in localStorage
+    const accounts = getRegisteredAccounts();
+    const updatedAccounts = [...accounts.filter((a) => a.email.toLowerCase() !== cleanEmail), newUser];
+    localStorage.setItem('gh_registered_users', JSON.stringify(updatedAccounts));
+
+    // Sync resident with hostelStore
+    hostelStore.addResident({
+      name: data.name,
+      email: cleanEmail,
+      phone: data.phone || '9876543210',
+      emergencyContact: '9876500000',
+      roomNumber: data.roomNumber || '101',
+      depositAmount: 8500,
+    });
+
+    // Set active session
+    const activeUser: User = {
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role,
+      phone: newUser.phone,
+      roomNumber: newUser.roomNumber,
+      roomId: newUser.roomId,
+    };
+
+    setUser(activeUser);
+    localStorage.setItem('gh_user_session', JSON.stringify(activeUser));
+    return activeUser;
   };
 
   const demoLogin = (role: Role) => {

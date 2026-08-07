@@ -1,4 +1,11 @@
-import { Room, Resident, Staff, Invoice, MaintenanceRequest, Notification } from './types';
+import { Room, Resident, Staff, Invoice, MaintenanceRequest, Notification, SmsLog, SmsSettings, RecurringBillingSettings, SmsTemplate, PaymentSettings, FloorWifi } from './types';
+import {
+  sendSmsNotification,
+  buildPaymentDueSmsText,
+  buildMaintenanceUpdateSmsText,
+  buildEmergencyBroadcastSmsText,
+  checkTwilioConfiguration,
+} from './sms-service';
 
 const STORAGE_KEY = 'gh_hostel_store_v1';
 
@@ -238,6 +245,24 @@ const INITIAL_INVOICES: Invoice[] = [
     paymentDate: '2026-07-05T10:15:00.000Z',
     createdAt: '2026-07-01T00:00:00.000Z',
   },
+  {
+    id: 'inv-702',
+    invoiceNumber: 'INV-2026-0702',
+    residentId: 'res-103',
+    residentName: 'Priya Verma',
+    roomNumber: '102',
+    month: 'July',
+    year: 2026,
+    rentAmount: 9500,
+    electricityUnits: 65,
+    electricityCharges: 650,
+    waterCharges: 200,
+    fine: 500,
+    totalAmount: 10850,
+    dueDate: '2026-07-10',
+    status: 'OVERDUE',
+    createdAt: '2026-07-01T00:00:00.000Z',
+  },
 ];
 
 const INITIAL_MAINTENANCE: MaintenanceRequest[] = [
@@ -288,6 +313,164 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
   },
 ];
 
+const INITIAL_SMS_LOGS: SmsLog[] = [
+  {
+    id: 'sms-1',
+    recipientName: 'Aarav Sharma',
+    phone: '+919876512345',
+    type: 'PAYMENT_DUE',
+    message: 'Grand Horizon Hostel: Dear Aarav Sharma, your rent invoice of ₹9,150 (Room 101) is due on 2026-08-10. Please pay via PhonePe on your resident portal.',
+    status: 'DELIVERED',
+    sentAt: '2026-08-01T09:15:00.000Z',
+    sid: 'SM90812345',
+    triggeredBy: 'Auto Billing System',
+  },
+  {
+    id: 'sms-2',
+    recipientName: 'Rohan Mehta',
+    phone: '+919876523456',
+    type: 'MAINTENANCE_UPDATE',
+    message: 'Grand Horizon Hostel Alert: Dear Rohan Mehta, your maintenance request "Tap leaking in attached bathroom" for Room 101 is now marked as "IN_PROGRESS".',
+    status: 'DELIVERED',
+    sentAt: '2026-08-04T09:31:00.000Z',
+    sid: 'SM90812346',
+    triggeredBy: 'Staff Action (Ramesh Chand)',
+  },
+  {
+    id: 'sms-3',
+    recipientName: 'All Active Residents (18)',
+    phone: 'BROADCAST_GROUP',
+    type: 'EMERGENCY_BROADCAST',
+    message: '🚨 EMERGENCY HOSTEL BROADCAST [Grand Horizon]: WATER TANK CLEANING - Supply paused 9 AM to 12 PM Sunday. Contact Warden for urgent support.',
+    status: 'DELIVERED',
+    sentAt: '2026-08-03T16:01:00.000Z',
+    sid: 'SM90812347',
+    triggeredBy: 'Admin Warden',
+  },
+];
+
+const INITIAL_SMS_SETTINGS: SmsSettings = {
+  enabled: true,
+  notifyOnInvoiceCreated: true,
+  notifyOnPaymentOverdue: true,
+  notifyOnMaintenanceUpdate: true,
+  notifyOnPaymentReceived: true,
+  emergencyBroadcastsEnabled: true,
+  twilioConfigured: false,
+};
+
+const INITIAL_RECURRING_BILLING_SETTINGS: RecurringBillingSettings = {
+  enabled: true,
+  scheduleDay: 1, // 1st of every month
+  autoSendSms: true,
+  lastRunDate: '2026-08-01',
+  nextRunDate: '2026-09-01',
+};
+
+const INITIAL_SMS_TEMPLATES: SmsTemplate[] = [
+  {
+    id: 'tmpl-1',
+    title: 'Water Supply Maintenance Alert',
+    category: 'BROADCAST',
+    headline: 'WATER SUPPLY PAUSED',
+    body: 'Water supply will be temporarily paused from 9 AM to 12 PM this Sunday for tank cleaning & sanitization. Please store water in advance.',
+    isSystem: true,
+  },
+  {
+    id: 'tmpl-2',
+    title: 'Monthly Rent Invoice Notification',
+    category: 'PAYMENT_DUE',
+    headline: 'RENT INVOICE GENERATED',
+    body: 'Dear {ResidentName}, your rent invoice for Room {RoomNo} of ₹{Amount} is generated. Please clear dues by 10th of this month via PhonePe on your portal.',
+    isSystem: true,
+  },
+  {
+    id: 'tmpl-3',
+    title: 'Urgent Payment Overdue Alert',
+    category: 'OVERDUE',
+    headline: 'URGENT RENT OVERDUE',
+    body: 'Dear {ResidentName}, your rent payment for Room {RoomNo} is OVERDUE. Please log in to your portal and complete payment immediately to avoid late fee charges.',
+    isSystem: true,
+  },
+  {
+    id: 'tmpl-4',
+    title: 'Fire & Safety Inspection Drill',
+    category: 'BROADCAST',
+    headline: 'FIRE SAFETY DRILL',
+    body: 'Attention Residents: A mandatory fire safety and alarm system check is scheduled today at 4:00 PM. No evacuation required.',
+    isSystem: true,
+  },
+  {
+    id: 'tmpl-5',
+    title: 'Night Gate Lock Timings',
+    category: 'GENERAL',
+    headline: 'HOSTEL GATE TIMINGS',
+    body: 'Hostel main entry gates close strictly at 10:30 PM. Late entry requires prior warden approval via the resident portal.',
+    isSystem: true,
+  },
+  {
+    id: 'tmpl-6',
+    title: 'Maintenance Ticket Update',
+    category: 'MAINTENANCE',
+    headline: 'MAINTENANCE RESOLVED',
+    body: 'Dear {ResidentName}, your room maintenance request for Room {RoomNo} has been completed and marked RESOLVED by staff.',
+    isSystem: true,
+  },
+];
+
+const INITIAL_PAYMENT_SETTINGS: PaymentSettings = {
+  merchantName: 'Grand Horizon Hostel & Residences',
+  merchantUpiVpa: 'grandhorizon@ybl',
+  bankAccountName: 'Grand Horizon Management Pvt Ltd',
+  bankName: 'HDFC Bank - MG Road Branch',
+  bankAccountNumber: '50200084920192',
+  ifscCode: 'HDFC0001234',
+  phonePeQrEnabled: true,
+  upiCollectEnabled: true,
+  cashPaymentEnabled: true,
+  rentDueDay: 10,
+  gracePeriodDays: 3,
+  lateFeePerDay: 50,
+  autoApplyLateFee: true,
+  autoSendPaymentReceiptSms: true,
+  includeQrInSmsReminder: true,
+};
+
+const INITIAL_FLOOR_WIFI: FloorWifi[] = [
+  {
+    floor: 1,
+    ssid: 'GrandHorizon_Resident',
+    password: 'Fiber1Gbps#2026',
+    speed: '1 Gbps Fiber',
+    frequency: '5 GHz Dual-Band',
+    notes: 'Ground & 1st Floor High-Speed Mesh Access Point',
+  },
+  {
+    floor: 2,
+    ssid: 'GrandHorizon_Fl2_5G',
+    password: 'Fiber1Gbps#2026',
+    speed: '1 Gbps Fiber',
+    frequency: '5 GHz Dual-Band',
+    notes: '2nd Floor High-Speed Mesh Access Point',
+  },
+  {
+    floor: 3,
+    ssid: 'GrandHorizon_Fl3_5G',
+    password: 'Fiber1Gbps#2026',
+    speed: '1 Gbps Fiber',
+    frequency: '5 GHz Dual-Band',
+    notes: '3rd Floor High-Speed Mesh Access Point',
+  },
+  {
+    floor: 4,
+    ssid: 'GrandHorizon_Fl4_5G',
+    password: 'Fiber1Gbps#2026',
+    speed: '1 Gbps Fiber',
+    frequency: '5 GHz Dual-Band',
+    notes: '4th Floor High-Speed Mesh Access Point',
+  },
+];
+
 class HostelStore {
   private rooms: Room[] = [];
   private residents: Resident[] = [];
@@ -295,6 +478,12 @@ class HostelStore {
   private invoices: Invoice[] = [];
   private maintenance: MaintenanceRequest[] = [];
   private notifications: Notification[] = [];
+  private smsLogs: SmsLog[] = [];
+  private smsSettings: SmsSettings = INITIAL_SMS_SETTINGS;
+  private recurringBillingSettings: RecurringBillingSettings = INITIAL_RECURRING_BILLING_SETTINGS;
+  private smsTemplates: SmsTemplate[] = INITIAL_SMS_TEMPLATES;
+  private paymentSettings: PaymentSettings = INITIAL_PAYMENT_SETTINGS;
+  private floorWifis: FloorWifi[] = [];
 
   constructor() {
     this.loadFromStorage();
@@ -312,6 +501,12 @@ class HostelStore {
         this.invoices = parsed.invoices || INITIAL_INVOICES;
         this.maintenance = parsed.maintenance || INITIAL_MAINTENANCE;
         this.notifications = parsed.notifications || INITIAL_NOTIFICATIONS;
+        this.smsLogs = parsed.smsLogs || INITIAL_SMS_LOGS;
+        this.smsSettings = parsed.smsSettings || INITIAL_SMS_SETTINGS;
+        this.recurringBillingSettings = parsed.recurringBillingSettings || INITIAL_RECURRING_BILLING_SETTINGS;
+        this.smsTemplates = parsed.smsTemplates || INITIAL_SMS_TEMPLATES;
+        this.paymentSettings = parsed.paymentSettings || INITIAL_PAYMENT_SETTINGS;
+        this.floorWifis = parsed.floorWifis || INITIAL_FLOOR_WIFI;
         return;
       }
     } catch (e) {
@@ -324,6 +519,12 @@ class HostelStore {
     this.invoices = [...INITIAL_INVOICES];
     this.maintenance = [...INITIAL_MAINTENANCE];
     this.notifications = [...INITIAL_NOTIFICATIONS];
+    this.smsLogs = [...INITIAL_SMS_LOGS];
+    this.smsSettings = { ...INITIAL_SMS_SETTINGS };
+    this.recurringBillingSettings = { ...INITIAL_RECURRING_BILLING_SETTINGS };
+    this.smsTemplates = [...INITIAL_SMS_TEMPLATES];
+    this.paymentSettings = { ...INITIAL_PAYMENT_SETTINGS };
+    this.floorWifis = [...INITIAL_FLOOR_WIFI];
     this.saveToStorage();
   }
 
@@ -339,12 +540,19 @@ class HostelStore {
           invoices: this.invoices,
           maintenance: this.maintenance,
           notifications: this.notifications,
+          smsLogs: this.smsLogs,
+          smsSettings: this.smsSettings,
+          recurringBillingSettings: this.recurringBillingSettings,
+          smsTemplates: this.smsTemplates,
+          paymentSettings: this.paymentSettings,
+          floorWifis: this.floorWifis,
         })
       );
     } catch (e) {
       console.error('Failed to save store to localStorage', e);
     }
   }
+
 
   // DASHBOARD METRICS
   public getDashboardStats() {
@@ -566,6 +774,37 @@ class HostelStore {
     return this.invoices;
   }
 
+  public getRecurringBillingSettings() {
+    return this.recurringBillingSettings;
+  }
+
+  public setRecurringBillingSettings(data: Partial<RecurringBillingSettings>) {
+    this.recurringBillingSettings = { ...this.recurringBillingSettings, ...data };
+    this.saveToStorage();
+    return this.recurringBillingSettings;
+  }
+
+  public toggleRecurringBilling(enabled?: boolean) {
+    const nextState = enabled !== undefined ? enabled : !this.recurringBillingSettings.enabled;
+    this.recurringBillingSettings.enabled = nextState;
+    this.saveToStorage();
+    return this.recurringBillingSettings;
+  }
+
+  public async sendInvoiceSmsReminder(invoiceId: string, triggeredBy = 'Admin Manual Reminder') {
+    const inv = this.invoices.find((i) => i.id === invoiceId);
+    if (!inv) throw new Error('Invoice not found');
+
+    const resident = this.residents.find((r) => r.id === inv.residentId || r.name === inv.residentName);
+    const phone = resident?.phone || '9876512345';
+    
+    const isOverdue = inv.status === 'OVERDUE' || (inv.status === 'PENDING' && new Date(inv.dueDate) < new Date());
+    const prefix = isOverdue ? '🚨 URGENT OVERDUE PAYMENT REMINDER' : '📢 RENT PAYMENT REMINDER';
+    const smsMessage = `Grand Horizon Hostel: ${prefix} for ${inv.residentName} (Room ${inv.roomNumber}). Rent amount of ₹${(inv.totalAmount || 0).toLocaleString('en-IN')} for ${inv.month} ${inv.year} is ${isOverdue ? 'OVERDUE' : 'due on ' + inv.dueDate}. Please clear your dues via PhonePe on resident portal or scan UPI QR code.`;
+
+    return await this.sendCustomSms(inv.residentName, phone, smsMessage, 'PAYMENT_DUE', triggeredBy);
+  }
+
   public generateBatchInvoices(month: string, year: number) {
     let count = 0;
     const activeResidents = this.residents.filter((r) => r.status === 'ACTIVE' && r.roomId);
@@ -582,6 +821,7 @@ class HostelStore {
         const electricityCharges = electricityUnits * 10;
         const waterCharges = 200;
         const totalAmount = rent + electricityCharges + waterCharges;
+        const dueDate = `${year}-08-10`;
 
         this.invoices.unshift({
           id: `inv-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -597,11 +837,17 @@ class HostelStore {
           waterCharges,
           fine: 0,
           totalAmount,
-          dueDate: `${year}-08-10`,
+          dueDate,
           status: 'PENDING',
           createdAt: new Date().toISOString(),
         });
         count++;
+
+        // Trigger SMS notification if enabled
+        if (this.smsSettings.enabled && this.smsSettings.notifyOnInvoiceCreated && res.phone) {
+          const smsText = buildPaymentDueSmsText(res.name, totalAmount, dueDate, res.roomNumber);
+          this.sendCustomSms(res.name, res.phone, smsText, 'PAYMENT_DUE', 'Auto Billing Engine');
+        }
       }
     });
 
@@ -614,6 +860,14 @@ class HostelStore {
     if (inv) {
       inv.status = 'PAID';
       inv.paymentDate = new Date().toISOString();
+
+      // Trigger payment confirmation SMS
+      const res = this.residents.find((r) => r.id === inv.residentId);
+      if (this.smsSettings.enabled && this.smsSettings.notifyOnPaymentReceived && res?.phone) {
+        const smsText = `Grand Horizon Hostel: Payment confirmed! Received ₹${inv.totalAmount.toLocaleString('en-IN')} for Invoice ${inv.invoiceNumber} (${inv.month} ${inv.year}). Thank you!`;
+        this.sendCustomSms(res.name, res.phone, smsText, 'PAYMENT_DUE', 'PhonePe Gateway');
+      }
+
       this.saveToStorage();
       return { success: true, invoice: inv };
     }
@@ -647,12 +901,229 @@ class HostelStore {
   public updateMaintenance(id: string, data: Partial<MaintenanceRequest>) {
     const index = this.maintenance.findIndex((m) => m.id === id);
     if (index !== -1) {
-      this.maintenance[index] = { ...this.maintenance[index], ...data };
+      const oldTicket = this.maintenance[index];
+      this.maintenance[index] = { ...oldTicket, ...data };
+
+      // Trigger SMS notification to resident if status or assigned staff changed
+      if (
+        this.smsSettings.enabled &&
+        this.smsSettings.notifyOnMaintenanceUpdate &&
+        data.status &&
+        data.status !== oldTicket.status
+      ) {
+        const res = this.residents.find((r) => r.id === oldTicket.residentId);
+        const phone = res?.phone || '9876512345';
+        const smsText = buildMaintenanceUpdateSmsText(
+          oldTicket.residentName,
+          oldTicket.title,
+          data.status,
+          oldTicket.roomNumber
+        );
+        this.sendCustomSms(oldTicket.residentName, phone, smsText, 'MAINTENANCE_UPDATE', 'Maintenance Desk');
+      }
+
       this.saveToStorage();
       return this.maintenance[index];
     }
     throw new Error('Maintenance request not found');
   }
+
+  // SMS MANAGEMENT
+  public getSmsLogs() {
+    return this.smsLogs;
+  }
+
+  public getSmsSettings() {
+    const twilioStatus = checkTwilioConfiguration();
+    return {
+      ...this.smsSettings,
+      twilioConfigured: twilioStatus.configured,
+    };
+  }
+
+  public updateSmsSettings(settings: Partial<SmsSettings>) {
+    this.smsSettings = { ...this.smsSettings, ...settings };
+    this.saveToStorage();
+    return this.smsSettings;
+  }
+
+  public async sendCustomSms(
+    recipientName: string,
+    phone: string,
+    message: string,
+    type: SmsLog['type'] = 'CUSTOM',
+    triggeredBy = 'Admin Action'
+  ) {
+    const res = await sendSmsNotification({
+      toPhone: phone,
+      recipientName,
+      message,
+      type,
+      triggeredBy,
+    });
+
+    const newLog: SmsLog = {
+      id: `sms-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      recipientName,
+      phone,
+      type,
+      message,
+      status: res.status,
+      sentAt: new Date().toISOString(),
+      sid: res.sid,
+      triggeredBy,
+    };
+
+    this.smsLogs.unshift(newLog);
+    this.saveToStorage();
+    return { ...res, log: newLog };
+  }
+
+  public async broadcastSmsToAll(
+    headline: string,
+    messageBody: string,
+    triggeredBy = 'Admin Broadcast'
+  ) {
+    const activeResidents = this.residents.filter((r) => r.status === 'ACTIVE');
+    const fullSmsText = buildEmergencyBroadcastSmsText(headline, messageBody);
+
+    let deliveredCount = 0;
+    const sids: string[] = [];
+
+    for (const res of activeResidents) {
+      if (res.phone) {
+        const result = await sendSmsNotification({
+          toPhone: res.phone,
+          recipientName: res.name,
+          message: fullSmsText,
+          type: 'EMERGENCY_BROADCAST',
+          triggeredBy,
+        });
+        if (result.success) deliveredCount++;
+        sids.push(result.sid);
+      }
+    }
+
+    // Add summary log for broadcast
+    const broadcastLog: SmsLog = {
+      id: `sms-bcast-${Date.now()}`,
+      recipientName: `All Active Residents (${activeResidents.length})`,
+      phone: 'BROADCAST_GROUP',
+      type: 'EMERGENCY_BROADCAST',
+      message: fullSmsText,
+      status: checkTwilioConfiguration().configured ? 'DELIVERED' : 'SIMULATED',
+      sentAt: new Date().toISOString(),
+      sid: sids[0] || `SM_BCAST_${Date.now()}`,
+      triggeredBy,
+    };
+
+    this.smsLogs.unshift(broadcastLog);
+    
+    // Also add to internal system notifications
+    this.notifications.unshift({
+      id: `notif-${Date.now()}`,
+      title: `🚨 ${headline}`,
+      message: messageBody,
+      createdAt: new Date().toISOString(),
+      target: 'ALL',
+    });
+
+    this.saveToStorage();
+    return {
+      success: true,
+      recipientCount: activeResidents.length,
+      deliveredCount,
+      message: `Emergency SMS Broadcast dispatched to ${activeResidents.length} resident(s).`,
+      log: broadcastLog,
+    };
+  }
+
+  // SMS TEMPLATES LIBRARY
+  public getSmsTemplates(): SmsTemplate[] {
+    return this.smsTemplates;
+  }
+
+  public addSmsTemplate(template: Omit<SmsTemplate, 'id'>): SmsTemplate {
+    const newTmpl: SmsTemplate = {
+      ...template,
+      id: `tmpl-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      isSystem: false,
+    };
+    this.smsTemplates.unshift(newTmpl);
+    this.saveToStorage();
+    return newTmpl;
+  }
+
+  public updateSmsTemplate(id: string, updates: Partial<SmsTemplate>): SmsTemplate {
+    const idx = this.smsTemplates.findIndex((t) => t.id === id);
+    if (idx !== -1) {
+      this.smsTemplates[idx] = { ...this.smsTemplates[idx], ...updates };
+      this.saveToStorage();
+      return this.smsTemplates[idx];
+    }
+    throw new Error('Template not found');
+  }
+
+  public deleteSmsTemplate(id: string): void {
+    this.smsTemplates = this.smsTemplates.filter((t) => t.id !== id);
+    this.saveToStorage();
+  }
+
+  // PAYMENT SETTINGS
+  public getPaymentSettings(): PaymentSettings {
+    return this.paymentSettings;
+  }
+
+  public updatePaymentSettings(updates: Partial<PaymentSettings>): PaymentSettings {
+    this.paymentSettings = { ...this.paymentSettings, ...updates };
+    this.saveToStorage();
+    return this.paymentSettings;
+  }
+
+  // FLOOR WI-FI MANAGEMENT
+  public getFloorWifis(): FloorWifi[] {
+    return this.floorWifis;
+  }
+
+  public getWifiByFloor(floor: number): FloorWifi {
+    const found = this.floorWifis.find((w) => Number(w.floor) === Number(floor));
+    if (found) return found;
+    return {
+      floor: Number(floor),
+      ssid: floor === 1 ? 'GrandHorizon_Resident' : `GrandHorizon_Fl${floor}_5G`,
+      password: 'Fiber1Gbps#2026',
+      speed: '1 Gbps Fiber',
+      frequency: '5 GHz Dual-Band',
+      notes: `Floor ${floor} High-Speed Mesh Access Point`,
+    };
+  }
+
+  public updateFloorWifi(floor: number, updates: Partial<FloorWifi>): FloorWifi {
+    const floorNum = Number(floor);
+    const idx = this.floorWifis.findIndex((w) => Number(w.floor) === floorNum);
+    if (idx !== -1) {
+      this.floorWifis[idx] = { ...this.floorWifis[idx], ...updates, floor: floorNum };
+    } else {
+      const newWifi: FloorWifi = {
+        floor: floorNum,
+        ssid: updates.ssid || (floorNum === 1 ? 'GrandHorizon_Resident' : `GrandHorizon_Fl${floorNum}_5G`),
+        password: updates.password || 'Fiber1Gbps#2026',
+        speed: updates.speed || '1 Gbps Fiber',
+        frequency: updates.frequency || '5 GHz Dual-Band',
+        notes: updates.notes || `Floor ${floorNum} High-Speed Mesh Access Point`,
+      };
+      this.floorWifis.push(newWifi);
+    }
+    this.saveToStorage();
+    return this.getWifiByFloor(floorNum);
+  }
+
+  public deleteFloorWifi(floor: number): void {
+    this.floorWifis = this.floorWifis.filter((w) => Number(w.floor) !== Number(floor));
+    this.saveToStorage();
+  }
+
 
   // NOTIFICATIONS
   public getNotifications() {
@@ -815,6 +1286,23 @@ export function setupMockFetchInterceptor() {
             return jsonResponse(hostelStore.generateBatchInvoices(bodyData.month || 'August', bodyData.year || 2026));
         }
 
+        if (cleanPath === '/api/invoices/recurring') {
+          if (method === 'GET') return jsonResponse(hostelStore.getRecurringBillingSettings());
+          if (method === 'POST' || method === 'PUT') {
+            if (typeof bodyData.enabled === 'boolean') {
+              return jsonResponse(hostelStore.setRecurringBillingSettings(bodyData));
+            }
+            return jsonResponse(hostelStore.toggleRecurringBilling());
+          }
+        }
+
+        if (cleanPath === '/api/invoices/send-reminder') {
+          if (method === 'POST') {
+            const res = await hostelStore.sendInvoiceSmsReminder(bodyData.invoiceId, bodyData.triggeredBy);
+            return jsonResponse(res);
+          }
+        }
+
         if (cleanPath === '/api/maintenance') {
           if (method === 'GET') return jsonResponse(hostelStore.getMaintenance());
           if (method === 'POST') return jsonResponse(hostelStore.createMaintenance(bodyData));
@@ -844,8 +1332,76 @@ export function setupMockFetchInterceptor() {
           return jsonResponse({ success: true, message: 'Payment recorded successfully' });
         }
 
+        if (cleanPath === '/api/payments/settings') {
+          if (method === 'GET') return jsonResponse(hostelStore.getPaymentSettings());
+          if (method === 'POST' || method === 'PUT') return jsonResponse(hostelStore.updatePaymentSettings(bodyData));
+        }
+
+        // FLOOR WI-FI API
+        if (cleanPath === '/api/wifi/floors') {
+          if (method === 'GET') return jsonResponse(hostelStore.getFloorWifis());
+          if (method === 'POST' || method === 'PUT') {
+            const updated = hostelStore.updateFloorWifi(bodyData.floor, bodyData);
+            return jsonResponse(updated);
+          }
+        }
+
+        if (cleanPath.startsWith('/api/wifi/floors/')) {
+          const floorNum = Number(cleanPath.replace('/api/wifi/floors/', ''));
+          if (method === 'GET') return jsonResponse(hostelStore.getWifiByFloor(floorNum));
+          if (method === 'PUT') return jsonResponse(hostelStore.updateFloorWifi(floorNum, bodyData));
+          if (method === 'DELETE') {
+            hostelStore.deleteFloorWifi(floorNum);
+            return jsonResponse({ success: true });
+          }
+        }
+
         if (cleanPath === '/api/auth/forgot-password') {
           return jsonResponse({ success: true, message: 'Password recovery email sent successfully' });
+        }
+
+        // SMS API Endpoints
+        if (cleanPath === '/api/sms/logs') {
+          return jsonResponse(hostelStore.getSmsLogs());
+        }
+
+        if (cleanPath === '/api/sms/templates') {
+          if (method === 'GET') return jsonResponse(hostelStore.getSmsTemplates());
+          if (method === 'POST') return jsonResponse(hostelStore.addSmsTemplate(bodyData));
+        }
+
+        if (cleanPath.startsWith('/api/sms/templates/')) {
+          const id = cleanPath.replace('/api/sms/templates/', '');
+          if (method === 'PUT') return jsonResponse(hostelStore.updateSmsTemplate(id, bodyData));
+          if (method === 'DELETE') {
+            hostelStore.deleteSmsTemplate(id);
+            return jsonResponse({ success: true });
+          }
+        }
+
+        if (cleanPath === '/api/sms/settings') {
+          if (method === 'GET') return jsonResponse(hostelStore.getSmsSettings());
+          if (method === 'PUT') return jsonResponse(hostelStore.updateSmsSettings(bodyData));
+        }
+
+        if (cleanPath === '/api/sms/send') {
+          const res = await hostelStore.sendCustomSms(
+            bodyData.recipientName || 'Resident',
+            bodyData.phone || '9876543210',
+            bodyData.message || 'SMS Alert',
+            bodyData.type || 'CUSTOM',
+            bodyData.triggeredBy || 'Admin Action'
+          );
+          return jsonResponse(res);
+        }
+
+        if (cleanPath === '/api/sms/broadcast') {
+          const res = await hostelStore.broadcastSmsToAll(
+            bodyData.headline || 'URGENT NOTICE',
+            bodyData.message || 'Important hostel announcement.',
+            bodyData.triggeredBy || 'Admin Broadcast'
+          );
+          return jsonResponse(res);
         }
 
         // Default fallback for any other API route

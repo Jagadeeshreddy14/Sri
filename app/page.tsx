@@ -25,10 +25,14 @@ import StaffManagement from '../components/admin/StaffManagement';
 import SmartBilling from '../components/admin/SmartBilling';
 import MaintenanceAdmin from '../components/admin/MaintenanceAdmin';
 import ReportsView from '../components/admin/ReportsView';
+import SmsManagement from '../components/admin/SmsManagement';
 
 // Role Dashboards
 import ResidentDashboard from '../components/resident/ResidentDashboard';
 import StaffDashboard from '../components/staff/StaffDashboard';
+
+// Onboarding
+import UserOnboarding from '../components/onboarding/UserOnboarding';
 
 import {
   LayoutDashboard,
@@ -37,6 +41,7 @@ import {
   Wrench,
   Receipt,
   FileSpreadsheet,
+  MessageSquare,
 } from 'lucide-react';
 
 export default function Home() {
@@ -49,10 +54,28 @@ export default function Home() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authRole, setAuthRole] = useState<'admin' | 'resident' | 'staff'>('resident');
 
+  // Onboarding Modal State
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+
   // Admin Active Sub-Tab
   const [adminTab, setAdminTab] = useState<
-    'dashboard' | 'rooms' | 'residents' | 'staff' | 'billing' | 'maintenance' | 'reports'
+    'dashboard' | 'rooms' | 'residents' | 'staff' | 'billing' | 'maintenance' | 'sms' | 'reports'
   >('dashboard');
+
+  // Auto-trigger onboarding for new sessions if not completed
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const completedUser = localStorage.getItem(`gh_onboarding_completed_${user.id}`);
+      const completedRole = localStorage.getItem(`gh_onboarding_completed_role_${user.role}`);
+      if (!completedUser && !completedRole) {
+        // Automatically launch onboarding guide on first login
+        const timer = setTimeout(() => {
+          setIsOnboardingOpen(true);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     if (darkMode) {
@@ -76,7 +99,9 @@ export default function Home() {
         onOpenAuth={handleOpenAuth}
         currentAdminTab={adminTab}
         onAdminTabChange={setAdminTab}
+        onOpenOnboarding={() => setIsOnboardingOpen(true)}
       />
+
 
       {/* PUBLIC LANDING PAGE (Unauthenticated) */}
       {!isAuthenticated ? (
@@ -172,6 +197,17 @@ export default function Home() {
                 </button>
 
                 <button
+                  onClick={() => setAdminTab('sms')}
+                  className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
+                    adminTab === 'sms'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4" /> SMS Center
+                </button>
+
+                <button
                   onClick={() => setAdminTab('reports')}
                   className={`px-4 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
                     adminTab === 'reports'
@@ -190,6 +226,7 @@ export default function Home() {
               {adminTab === 'staff' && <StaffManagement />}
               {adminTab === 'billing' && <SmartBilling />}
               {adminTab === 'maintenance' && <MaintenanceAdmin />}
+              {adminTab === 'sms' && <SmsManagement />}
               {adminTab === 'reports' && <ReportsView />}
             </div>
           )}
@@ -208,6 +245,14 @@ export default function Home() {
         onClose={() => setIsAuthOpen(false)}
         defaultRole={authRole}
       />
+
+      {/* USER ONBOARDING FLOW */}
+      <UserOnboarding
+        user={user}
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+      />
+
     </div>
   );
 }

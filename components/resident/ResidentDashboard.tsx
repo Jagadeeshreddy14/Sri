@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Invoice, MaintenanceRequest, Room, Notification } from '@/lib/types';
+import { Invoice, MaintenanceRequest, Room, Notification, FloorWifi } from '@/lib/types';
 import { hostelStore } from '@/lib/store';
 import PhonePeModal from '@/components/PhonePeModal';
 import { generateInvoicePDF } from '@/lib/pdf-generator';
@@ -25,6 +25,10 @@ import {
   IndianRupee,
   User,
   Bed,
+  Mic,
+  MicOff,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 export default function ResidentDashboard() {
@@ -32,6 +36,8 @@ export default function ResidentDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [floorWifi, setFloorWifi] = useState<FloorWifi | null>(null);
+  const [wifiCopied, setWifiCopied] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // PhonePe Modal State
@@ -46,30 +52,106 @@ export default function ResidentDashboard() {
   const [mSubmitting, setMSubmitting] = useState(false);
   const [mSuccessMsg, setMSuccessMsg] = useState<string | null>(null);
 
+  // Voice Dictation (Microphone Access)
+  const [listeningTarget, setListeningTarget] = useState<'title' | 'desc' | null>(null);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+      setSpeechSupported(true);
+    }
+  }, []);
+
+  const toggleVoiceDictation = (target: 'title' | 'desc') => {
+    setMicError(null);
+    if (listeningTarget === target) {
+      setListeningTarget(null);
+      return;
+    }
+
+    const SpeechRecognition = typeof window !== 'undefined' && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+    if (!SpeechRecognition) {
+      setMicError('Speech recognition is not supported in this browser.');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setListeningTarget(target);
+      };
+
+      recognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (target === 'title') {
+          setMTitle((prev) => (prev ? `${prev} ${transcript}`.trim() : transcript));
+        } else {
+          setMDesc((prev) => (prev ? `${prev} ${transcript}`.trim() : transcript));
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+          setMicError('Microphone access was denied. Please allow microphone permissions in your browser.');
+        } else {
+          setMicError(`Voice dictation error (${event.error}). Please try again.`);
+        }
+        setListeningTarget(null);
+      };
+
+      recognition.onend = () => {
+        setListeningTarget(null);
+      };
+
+      recognition.start();
+    } catch (err: any) {
+      console.error('Mic start error:', err);
+      setMicError('Could not start microphone recording.');
+      setListeningTarget(null);
+    }
+  };
+
   const fetchResidentData = async () => {
     setLoading(true);
+    const roomNo = user?.roomNumber || '101';
+    const residentFloor = parseInt(roomNo.charAt(0)) || 1;
+
     try {
-      const [invRes, mainRes, notifRes] = await Promise.all([
+      const [invRes, mainRes, notifRes, wifiRes] = await Promise.all([
         fetch('/api/invoices'),
         fetch('/api/maintenance'),
         fetch('/api/notifications'),
+        fetch(`/api/wifi/floors/${residentFloor}`),
       ]);
 
       let invs: Invoice[] | null = null;
       let m: MaintenanceRequest[] | null = null;
       let notifs: Notification[] | null = null;
+      let wData: FloorWifi | null = null;
 
       if (invRes.ok) invs = await invRes.json();
       if (mainRes.ok) m = await mainRes.json();
       if (notifRes.ok) notifs = await notifRes.json();
+      if (wifiRes.ok) wData = await wifiRes.json();
 
       const finalInvs = Array.isArray(invs) ? invs : hostelStore.getInvoices();
       const finalM = Array.isArray(m) ? m : hostelStore.getMaintenance();
       const finalNotifs = Array.isArray(notifs) ? notifs : hostelStore.getNotifications();
+      const finalWifi = wData || hostelStore.getWifiByFloor(residentFloor);
 
       setInvoices(finalInvs.filter((i) => i.residentId === user?.id || user?.role === 'resident'));
       setMaintenance(finalM.filter((i) => i.residentId === user?.id || user?.role === 'resident'));
       setNotifications(finalNotifs);
+      setFloorWifi(finalWifi);
     } catch (e) {
       console.error(e);
       const finalInvs = hostelStore.getInvoices();
@@ -77,6 +159,7 @@ export default function ResidentDashboard() {
       setInvoices(finalInvs.filter((i) => i.residentId === user?.id || user?.role === 'resident'));
       setMaintenance(finalM.filter((i) => i.residentId === user?.id || user?.role === 'resident'));
       setNotifications(hostelStore.getNotifications());
+      setFloorWifi(hostelStore.getWifiByFloor(residentFloor));
     } finally {
       setLoading(false);
     }
@@ -138,8 +221,17 @@ export default function ResidentDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+      <div className="space-y-8 animate-pulse">
+        {/* Banner Skeleton */}
+        <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-3xl w-full"></div>
+        {/* Grid Cards Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-3xl"></div>
+          <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-3xl"></div>
+          <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-3xl"></div>
+        </div>
+        {/* Table Skeleton */}
+        <div className="h-64 bg-slate-200 dark:bg-slate-800 rounded-3xl w-full"></div>
       </div>
     );
   }
@@ -188,13 +280,38 @@ export default function ResidentDashboard() {
 
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase">Campus Wi-Fi</span>
+            <span className="text-xs font-bold text-slate-400 uppercase">
+              Floor {floorWifi?.floor || 1} Wi-Fi
+            </span>
             <Wifi className="w-5 h-5 text-indigo-500" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">GrandHorizon_Resident</h3>
-            <p className="text-xs font-mono text-blue-600 dark:text-blue-400 mt-1">Pass: Fiber1Gbps#2026</p>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white truncate">
+              {floorWifi?.ssid || 'GrandHorizon_Resident'}
+            </h3>
+            <p className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 mt-0.5">
+              Pass: {floorWifi?.password || 'Fiber1Gbps#2026'}
+            </p>
           </div>
+          <button
+            onClick={() => {
+              const text = `SSID: ${floorWifi?.ssid || 'GrandHorizon_Resident'}\nPass: ${floorWifi?.password || 'Fiber1Gbps#2026'}`;
+              navigator.clipboard.writeText(text);
+              setWifiCopied(true);
+              setTimeout(() => setWifiCopied(false), 2000);
+            }}
+            className="w-full mt-1 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 font-extrabold text-[11px] rounded-xl border border-indigo-200 dark:border-indigo-800 transition flex items-center justify-center gap-1.5"
+          >
+            {wifiCopied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" /> Copied Wi-Fi Info!
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" /> Copy Wi-Fi Credentials
+              </>
+            )}
+          </button>
         </div>
 
         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
@@ -326,6 +443,29 @@ export default function ResidentDashboard() {
               </div>
             )}
 
+            {micError && (
+              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs rounded-xl flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{micError}</span>
+              </div>
+            )}
+
+            {listeningTarget && (
+              <div className="p-2.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300 text-xs rounded-xl flex items-center justify-between animate-pulse">
+                <span className="flex items-center gap-2 font-semibold">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+                  Listening... Dictate your {listeningTarget === 'title' ? 'issue title' : 'complaint description'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setListeningTarget(null)}
+                  className="text-[10px] font-bold px-2 py-0.5 bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 rounded-lg"
+                >
+                  Stop
+                </button>
+              </div>
+            )}
+
             <form onSubmit={handleCreateMaintenance} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Issue Category</label>
@@ -343,7 +483,22 @@ export default function ResidentDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Issue Title *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Issue Title *</label>
+                  <button
+                    type="button"
+                    onClick={() => toggleVoiceDictation('title')}
+                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg transition ${
+                      listeningTarget === 'title'
+                        ? 'bg-rose-500 text-white animate-pulse shadow-sm'
+                        : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60 hover:bg-blue-100'
+                    }`}
+                    title="Dictate title with microphone"
+                  >
+                    {listeningTarget === 'title' ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                    <span>{listeningTarget === 'title' ? 'Stop Recording' : 'Voice Dictate'}</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
@@ -355,7 +510,22 @@ export default function ResidentDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Detailed Description *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Detailed Description *</label>
+                  <button
+                    type="button"
+                    onClick={() => toggleVoiceDictation('desc')}
+                    className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg transition ${
+                      listeningTarget === 'desc'
+                        ? 'bg-rose-500 text-white animate-pulse shadow-sm'
+                        : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60 hover:bg-blue-100'
+                    }`}
+                    title="Dictate description with microphone"
+                  >
+                    {listeningTarget === 'desc' ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                    <span>{listeningTarget === 'desc' ? 'Stop Recording' : 'Voice Dictate'}</span>
+                  </button>
+                </div>
                 <textarea
                   rows={2}
                   required

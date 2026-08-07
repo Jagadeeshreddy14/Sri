@@ -49,7 +49,7 @@ export default function AuthModal({ isOpen, onClose, defaultRole = 'resident' }:
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, role);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Invalid credentials');
@@ -67,7 +67,7 @@ export default function AuthModal({ isOpen, onClose, defaultRole = 'resident' }:
     }
     setLoading(true);
     try {
-      await register({ name, email, password, role, phone });
+      await register({ name, email, password, role: 'resident', phone });
       onClose();
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -149,7 +149,7 @@ export default function AuthModal({ isOpen, onClose, defaultRole = 'resident' }:
               Sign In
             </button>
             <button
-              onClick={() => { setTab('register'); setError(null); }}
+              onClick={() => { setTab('register'); setRole('resident'); setError(null); }}
               className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
                 tab === 'register' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm' : 'text-slate-500'
               }`}
@@ -266,17 +266,24 @@ export default function AuthModal({ isOpen, onClose, defaultRole = 'resident' }:
               </div>
             </div>
 
+            <div className="p-3 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/60 rounded-xl">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-purple-700 dark:text-purple-300">🏠 Resident Account Registration</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                Staff & Admin accounts are created directly by Hostel Management. Staff and Admins can sign in directly using the Sign In tab.
+              </p>
+            </div>
+
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Account Role *</label>
-              <select
-                value={role}
-                onChange={(e: any) => setRole(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                <option value="resident">Resident / Student</option>
-                <option value="staff">Hostel Staff Member</option>
-                <option value="admin">Hostel Admin / Warden</option>
-              </select>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned Room Number</label>
+              <input
+                type="text"
+                value="101"
+                onChange={() => {}}
+                className="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm outline-none"
+                readOnly
+              />
             </div>
 
             <div>

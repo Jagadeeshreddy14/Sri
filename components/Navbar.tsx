@@ -13,6 +13,8 @@ import {
   ShieldCheck,
   CreditCard,
   Phone,
+  HelpCircle,
+  Sparkles,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -21,15 +23,18 @@ interface NavbarProps {
   onOpenAuth: (role?: 'admin' | 'resident' | 'staff') => void;
   currentAdminTab?: string;
   onAdminTabChange?: (tab: any) => void;
+  onOpenOnboarding?: () => void;
 }
 
 export default function Navbar({
   darkMode,
   onToggleDarkMode,
   onOpenAuth,
+  onOpenOnboarding,
 }: NavbarProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
 
   return (
     <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
@@ -73,35 +78,51 @@ export default function Navbar({
           </button>
 
           {!isAuthenticated ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => onOpenAuth('resident')}
-                className="px-4 py-2.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-2xl transition"
+                className="px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl transition"
               >
-                Resident Portal
+                🏠 Resident
+              </button>
+              <button
+                onClick={() => onOpenAuth('staff')}
+                className="px-3 py-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-2xl transition"
+              >
+                🛠️ Staff
               </button>
               <button
                 onClick={() => onOpenAuth('admin')}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-2xl shadow-md transition flex items-center gap-2"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-2xl shadow-md transition flex items-center gap-1.5"
               >
-                <ShieldCheck className="w-4 h-4" /> Admin Login
+                <ShieldCheck className="w-3.5 h-3.5" /> Admin Portal
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
                 <div className="w-7 h-7 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
-                  {user?.name?.charAt(0)}
+                  {user?.name?.charAt(0) || 'U'}
                 </div>
                 <div>
                   <span className="text-xs font-bold text-slate-900 dark:text-white block leading-tight">
                     {user?.name}
                   </span>
                   <span className="text-[10px] font-extrabold uppercase text-blue-600 dark:text-blue-400 block">
-                    {user?.role}
+                    {user?.role === 'admin' ? '👑 Admin' : user?.role === 'staff' ? '🛠️ Staff' : '🏠 Resident'}
                   </span>
                 </div>
               </div>
+
+              {onOpenOnboarding && (
+                <button
+                  onClick={onOpenOnboarding}
+                  className="px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-extrabold rounded-2xl shadow-sm transition flex items-center gap-1.5"
+                  title="Open Setup Guide & Onboarding Tour"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Setup Guide
+                </button>
+              )}
 
               <button
                 onClick={logout}
@@ -110,6 +131,7 @@ export default function Navbar({
               >
                 <LogOut className="w-4 h-4" />
               </button>
+
             </div>
           )}
         </div>

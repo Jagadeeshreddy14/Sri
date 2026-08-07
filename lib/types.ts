@@ -92,6 +92,14 @@ export interface Invoice {
   createdAt?: string;
 }
 
+export interface RecurringBillingSettings {
+  enabled: boolean;
+  scheduleDay: number; // 1st of every month
+  autoSendSms: boolean;
+  lastRunDate?: string;
+  nextRunDate: string;
+}
+
 export interface MaintenanceRequest {
   id: string;
   residentId: string;
@@ -116,3 +124,71 @@ export interface Notification {
   target?: string;
   createdAt: string;
 }
+
+export interface SmsLog {
+  id: string;
+  recipientName: string;
+  phone: string;
+  type: 'PAYMENT_DUE' | 'MAINTENANCE_UPDATE' | 'EMERGENCY_BROADCAST' | 'WELCOME' | 'CUSTOM';
+  message: string;
+  status: 'DELIVERED' | 'SIMULATED' | 'FAILED';
+  sentAt: string;
+  sid?: string;
+  triggeredBy?: string;
+}
+
+export interface SmsSettings {
+  enabled: boolean;
+  notifyOnInvoiceCreated: boolean;
+  notifyOnPaymentOverdue: boolean;
+  notifyOnMaintenanceUpdate: boolean;
+  notifyOnPaymentReceived: boolean;
+  emergencyBroadcastsEnabled: boolean;
+  twilioConfigured: boolean;
+}
+
+export interface SmsTemplate {
+  id: string;
+  title: string;
+  category: 'BROADCAST' | 'PAYMENT_DUE' | 'OVERDUE' | 'MAINTENANCE' | 'WELCOME' | 'GENERAL';
+  headline?: string;
+  body: string;
+  isSystem?: boolean;
+  createdAt?: string;
+}
+
+export interface PaymentSettings {
+  merchantName: string;
+  merchantUpiVpa: string;
+  bankAccountName: string;
+  bankName: string;
+  bankAccountNumber: string;
+  ifscCode: string;
+  phonePeQrEnabled: boolean;
+  upiCollectEnabled: boolean;
+  cashPaymentEnabled: boolean;
+  rentDueDay: number;
+  gracePeriodDays: number;
+  lateFeePerDay: number;
+  autoApplyLateFee: boolean;
+  autoSendPaymentReceiptSms: boolean;
+  includeQrInSmsReminder: boolean;
+}
+
+export interface OnboardingState {
+  completed: boolean;
+  completedAt?: string;
+  currentStep: number;
+  profileCompleted: boolean;
+  tourFinished: boolean;
+}
+
+export interface FloorWifi {
+  floor: number;
+  ssid: string;
+  password: string;
+  speed?: string;
+  frequency?: string;
+  notes?: string;
+}
+
