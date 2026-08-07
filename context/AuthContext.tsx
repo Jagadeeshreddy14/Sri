@@ -28,6 +28,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const handleResponse = async (response: Response, fallbackMessage: string): Promise<any> => {
+  if (!response.ok) {
+    let message = fallbackMessage;
+    try {
+      const err = await response.json();
+      message = err.message || message;
+    } catch (e) {
+      const text = await response.text().catch(() => '');
+      message = `Server Error (${response.status}): ${response.statusText || 'Unknown Error'}. ${text.slice(0, 100)}`;
+    }
+    throw new Error(message);
+  }
+
+  try {
+    return await response.json();
+  } catch (e) {
+    throw new Error(`Failed to parse response: ${e.message}`);
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
@@ -64,12 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify({ email: cleanEmail, password: computedPassword, role }),
     });
 
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.message || 'Login failed');
-    }
-
-    const authenticatedUser: User = await response.json();
+    const authenticatedUser: User = await handleResponse(response, 'Login failed');
     setUser(authenticatedUser);
     localStorage.setItem('gh_user_session', JSON.stringify(authenticatedUser));
     return authenticatedUser;
@@ -84,12 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify(data),
     });
 
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.message || 'Registration failed');
-    }
-
-    const authenticatedUser: User = await response.json();
+    const authenticatedUser: User = await handleResponse(response, 'Registration failed');
     setUser(authenticatedUser);
     localStorage.setItem('gh_user_session', JSON.stringify(authenticatedUser));
     return authenticatedUser;
